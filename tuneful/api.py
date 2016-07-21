@@ -14,7 +14,7 @@ from .utils import upload_path
 song_schema ={
     "properties":{
         "file": {
-            "name": {"type": "string"}
+            "filename": {"type": "string"}
         }
     },
     "required": ["file"]
@@ -69,7 +69,7 @@ def songs_post():
     
     #Add song to the database
   
-    file = models.File(id = data["file"]["id"], name = data["file"]["name"])
+    file = models.File(id = data["file"]["id"], filename = data["file"]["filename"])
     song = models.Song(id = data["id"], file=file )
     session.add(song)
     session.commit()
@@ -98,3 +98,25 @@ def delete_song(id):
     songs = session.query(models.Song).first()
     data=json.dumps(songs.as_dictionary())
     return Response(data, 200, mimetype = "application/json")
+    
+@app.route("/uploads/<filename>", methods = ["GET"])
+def uploaded_file(filename):
+    return send_from_directory(upload_path(), filename)
+    
+@app.route("/api/files", methods = ["POST"])
+@decorators.require("multipart/form-data")
+@decorators.accept("application/json")
+def file_post():
+    file = request.files.get("file")
+    if not file:
+        data = {"message": "Could not find file data"}
+        return Response(json.dumps(data), 422, mimetype="application/json")
+        
+    filename = secure_filename(file.filename)
+    db_file = models.File(filename=filename)
+    session.add(db_file)
+    session.commit()
+    file.save(upload_path(filename))
+    
+    data = db_file.as_dictionary()
+    return Response(json.dumps(data), 201, mimetype="application/json")

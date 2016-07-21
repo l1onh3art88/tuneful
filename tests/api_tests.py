@@ -14,6 +14,7 @@ from tuneful import app
 from tuneful import models
 from tuneful.utils import upload_path
 from tuneful.database import Base, engine, session
+from io import BytesIO
 
 class TestAPI(unittest.TestCase):
     """ Tests for the tuneful API """
@@ -52,8 +53,8 @@ class TestAPI(unittest.TestCase):
     def test_get_songs(self):
         """ Gets songs from populated database """
         
-        FileA = models.File(name="beyonce.mp3")
-        FileB=  models.File(name="charliePuth.mp3")
+        FileA = models.File(filename="beyonce.mp3")
+        FileB=  models.File(filename="charliePuth.mp3")
         songA = models.Song(file=FileA)
         songB = models.Song(file=FileB)
         
@@ -73,9 +74,9 @@ class TestAPI(unittest.TestCase):
     def test_get_song(self):
         
         """ Getting a single song from a populated database """
-        fileA = models.File(name="hello.mp3")
+        fileA = models.File(filename="hello.mp3")
         songA = models.Song(file=fileA)
-        fileB = models.File(name="bye.mp3")
+        fileB = models.File(filename="bye.mp3")
         songB = models.Song(file=fileB)
         
         session.add_all([songA, songB])
@@ -89,7 +90,7 @@ class TestAPI(unittest.TestCase):
         song = json.loads(response.data.decode("ascii"))
         
         self.assertEqual(song["file"]["id"], songA.file_id)
-        self.assertEqual(song["file"]["name"], songA.file.name)
+        self.assertEqual(song["file"]["filename"], songA.file.filename)
         
     def test_song_post(self):
         """ Posting a song to the database """
@@ -97,7 +98,7 @@ class TestAPI(unittest.TestCase):
             "id" : 1,
             "file":{
                 "id": 1,
-                "name" : "hello.mp3"
+                "filename" : "hello.mp3"
             }
         }
         
@@ -113,19 +114,19 @@ class TestAPI(unittest.TestCase):
         data = json.loads(response.data.decode("ascii"))
         self.assertEqual(data["id"], 1)
         self.assertEqual(data["file"]["id"], 1)
-        self.assertEqual(data["file"]["name"], "hello.mp3")
+        self.assertEqual(data["file"]["filename"], "hello.mp3")
         
         songs = session.query(models.Song).all()
         self.assertEqual(len(songs), 1)
         
         song = songs[0]
         
-        self.assertEqual(song.file.name, "hello.mp3")
+        self.assertEqual(song.file.filename, "hello.mp3")
     
     def test_delete_song(self):
         """ Deleting a single song from a populated database """
-        fileA = models.File(name = "hello.mp3")
-        fileB = models.File(name = "bye.mp3")
+        fileA = models.File(filename = "hello.mp3")
+        fileB = models.File(filename = "bye.mp3")
         songA = models.Song(file = fileA)
         songB = models.Song(file = fileB)
         
@@ -140,4 +141,41 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(response.mimetype, "application/json")
         
         song = json.loads(response.data.decode("ascii"))
-        self.assertEqual(song["file"]["name"], fileB.name)
+        self.assertEqual(song["file"]["filename"], fileB.filename)
+    
+    def test_get_uploaded_file(self):
+        path = upload_path("test.txt")
+        with open(path, "wb") as f:
+            f.write(b"File contents")
+            
+        response = self.client.get("/uploads/test.txt")
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/plain")
+        self.assertEqual(response.data, b"File contents")
+        
+    def test_file_upload(self):
+        data = {
+            "file": (BytesIO(b"File contents"), "test.txt")
+        }
+        
+        response = self.client.post("/api/files",
+            data=data,
+            content_type="multipart/form-data",
+            headers=[("Accept", "application/json")]
+        )
+        
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.mimetype, "application/json")
+        
+        data = json.loads(response.data.decode("ascii"))
+        self.assertEqual(urlparse(data["path"]).path, "/uploads/test.txt")
+        
+        path = upload_path("test.txt")
+        self.assertTrue(os.path.isfile(path))
+        
+        with open(path, "rb") as f:
+            contents = f.read()
+        self.assertEqual(contents, b"File contents")
+        
+        
