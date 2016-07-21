@@ -23,7 +23,6 @@ song_schema ={
 }
 @app.route("/api/songs", methods = ["GET"])
 @decorators.accept("application/json")
-
 def songs_get():
     """ Displays songs """
     
@@ -34,7 +33,27 @@ def songs_get():
     return Response(data, 200, mimetype="application/json")
     
 
+@app.route("/api/songs/<int:id>", methods=["GET"])
+@decorators.accept("application/json")
+def song_get(id):
+    """ Single song endpoint """
+    #Finds post from database based on id
+    song = session.query(models.Song).get(id)
+    
+    #Checks whether post actually exists
+    if not song:
+        message = "Could not find song with id {}".format(id)
+        data = json.dumps({"message": message})
+        return Response(data, 404, mimetype = "application/json")
+        
+    #Returns post as JSON
+    
+    data = json.dumps(song.as_dictionary())
+    return Response(data, 200, mimetype="application/json")
+
 @app.route("/api/songs", methods = ["POST"])
+@decorators.accept("application/json")
+@decorators.require("application/json")
 def songs_post():
     """ Adds a new song"""
     data = request.json
@@ -49,9 +68,9 @@ def songs_post():
         return Response(json.dumps(data), 422, mimetype="application/json")
     
     #Add song to the database
-    fileKeys = data["file"].keys()
-    print(fileKeys)
-    song = models.Song(id = data["id"], fileId=data["file"]["id"])
+  
+    file = models.File(id = data["file"]["id"], name = data["file"]["name"])
+    song = models.Song(id = data["id"], file=file )
     session.add(song)
     session.commit()
     
@@ -62,3 +81,20 @@ def songs_post():
     headers = {"Location": url_for("song_get", id=song.id)}
     return Response(data, 201, headers=headers, mimetype="application/json")
     
+@app.route("/api/songs/<int:id>", methods = ["DELETE"])
+@decorators.accept("application/json")
+def delete_song(id):
+    """ Delete a single song """
+    song = session.query(models.Song).get(id)
+    
+    if not song:
+        message = "Could not find post with id {}".format(id)
+        data = json.dumps({"message": message})
+        return Response(data,404, mimetype = "application/json")
+        
+    #Delete the post
+    session.delete(song)
+    session.commit()
+    songs = session.query(models.Song).first()
+    data=json.dumps(songs.as_dictionary())
+    return Response(data, 200, mimetype = "application/json")

@@ -66,9 +66,31 @@ class TestAPI(unittest.TestCase):
         data = json.loads(response.data.decode("ascii"))
         self.assertEqual(len(data), 2)
         songA=data[0]
-        self.assertEqual(songA["file"]["fileid"], FileA.id)
+        self.assertEqual(songA["file"]["id"], FileA.id)
         songB=data[1]
-        self.assertEqual(songB["file"]["fileid"], FileB.id)
+        self.assertEqual(songB["file"]["id"], FileB.id)
+        
+    def test_get_song(self):
+        
+        """ Getting a single song from a populated database """
+        fileA = models.File(name="hello.mp3")
+        songA = models.Song(file=fileA)
+        fileB = models.File(name="bye.mp3")
+        songB = models.Song(file=fileB)
+        
+        session.add_all([songA, songB])
+        session.commit()
+        
+        response = self.client.get("/api/songs/{}".format(songA.id), headers = [
+            ("Accept", "application/json")]
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "application/json")
+        song = json.loads(response.data.decode("ascii"))
+        
+        self.assertEqual(song["file"]["id"], songA.file_id)
+        self.assertEqual(song["file"]["name"], songA.file.name)
+        
     def test_song_post(self):
         """ Posting a song to the database """
         data={
@@ -90,8 +112,8 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(urlparse(response.headers.get("Location")).path, "/api/songs/1")
         data = json.loads(response.data.decode("ascii"))
         self.assertEqual(data["id"], 1)
-        self.assertEqual(data["file.id"], "1")
-        self.assertEqual(data["file.name"], "hello.mp3")
+        self.assertEqual(data["file"]["id"], 1)
+        self.assertEqual(data["file"]["name"], "hello.mp3")
         
         songs = session.query(models.Song).all()
         self.assertEqual(len(songs), 1)
@@ -99,3 +121,23 @@ class TestAPI(unittest.TestCase):
         song = songs[0]
         
         self.assertEqual(song.file.name, "hello.mp3")
+    
+    def test_delete_song(self):
+        """ Deleting a single song from a populated database """
+        fileA = models.File(name = "hello.mp3")
+        fileB = models.File(name = "bye.mp3")
+        songA = models.Song(file = fileA)
+        songB = models.Song(file = fileB)
+        
+        session.add_all([songA, songB])
+        session.commit()
+        
+        response = self.client.delete("/api/songs/{}".format(songA.id), headers=[
+            ("Accept", "application/json")]
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "application/json")
+        
+        song = json.loads(response.data.decode("ascii"))
+        self.assertEqual(song["file"]["name"], fileB.name)

@@ -11,13 +11,13 @@ from .database import Base, engine
 class Song(Base):
     __tablename__ = 'songs'
     id = Column(Integer, primary_key = True)
-    file = relationship("File", uselist=False, backref="song")
+    file_id = Column(Integer, ForeignKey('files.id'), nullable=False)
 
     def as_dictionary(self):
         song={
             "id": self.id,
             "file": {
-                "fileid": self.file.id,
+                "id": self.file.id,
                 "name": self.file.name
             }
         }
@@ -29,7 +29,8 @@ class File(Base):
     __tablename__ = 'files'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable = False)
-    song_id = Column(Integer, ForeignKey('songs.id'), nullable=False)
+    song = relationship("Song", uselist=False, backref="file")
+
  
     def as_dictionary(self):
         file={
